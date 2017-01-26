@@ -6,6 +6,19 @@ Nexus file that is saved by
 
 The process is slightly awkward, but it works.
 
+Runs on (at least) Python 2.7.10 and 3.5
+
+#### Caveats
+
+This really is a hack. There are no tests for the code. I know almost
+nothing about the Nexus format or FigTree. This code may cease to work
+properly if the exact format of the Nexus output written by FigTree
+changes.
+
+Andrew Rambaut says the "Import Colour Scheme" menu item in FigTree 1.4.3
+will be working in a future version
+([Google group discussion](https://groups.google.com/forum/#!topic/figtree-discuss/TJpd174Q02E)).
+
 ### Usage
 
 Load your tree into FigTree. I think you may need to make some change to it
@@ -21,19 +34,24 @@ You can then produce a new Nexus file with colored nodes using this script.
 Create a text file with lines like
 
     # This is a comment.
-    DA119 #00FF00
-    DA195_6_5148_EU859952.1 #ff00ff
-    DA344 antique fuchsia
+    taxon1 #00FF00
+    taxon2 #FF00FF
+    taxon3 antique fuchsia
 
-Lines are either comments (`#` must be the first character on the line), or
-have colors specified as 6-digit RGB hexadecimal, 
+Lines are treated as comments if `#` is the first character on the line.
+
+Otherwise, lines must give a taxon name (no whitespace!) followed by a
+color. Colors are either specified as 6 hexadecimal digit
+[RGB](https://en.wikipedia.org/wiki/RGB_color_model#Numeric_representations)
+with a leading `#` (e.g., `#00FF00` and `#FF00FF` above), or are given as a
+name (`antique fuchsia` above). To list the available names, see below.
 
 #### Create a new Nexus file
 
-`figtree-recolor.py` writes a Nexus file on standard output. So you can run it via:
+`figtree-recolor.py` writes a Nexus file on standard output. So you run it via:
 
 ```sh
-$ figtree-recolor.py --nexus figtree.nexus --colorFile colors.txt > new.nexus
+$ figtree-recolor.py --nexusFile figtree.nexus --colorFile colors.txt > new.nexus
 ```
 
 It can also read the Nexus from standard input:
@@ -47,8 +65,28 @@ case where your color specification file doesn't indicate otherwise), you
 can preserve the original colors:
 
 ```sh
-$ figtree-recolor.py --nexus figtree.nexus --colorFile colors.txt --preserveOriginalColors > new.nexus
+$ figtree-recolor.py --nexusFile figtree.nexus --colorFile colors.txt --preserveOriginalColors > new.nexus
 ```
+
+The default is that all original colors will be stripped.
+
+You can also specify a default color for taxa that are not given an
+explicit color in the color specification file. E.g., 
+
+```sh
+$ figtree-recolor.py --nexusFile figtree.nexus --colorFile colors.txt --defaultColor red > new.nexus
+```
+
+or
+
+```sh
+$ figtree-recolor.py --nexusFile figtree.nexus --colorFile colors.txt --defaultColor 0000FF > new.nexus
+```
+
+Note that if you use `--preserveOriginalColors` and a taxon has a
+pre-existing color (and is not named in the colors specification file),
+then the original color will be preserved (i.e., the default will not be
+applied).
 
 #### Named colors
 

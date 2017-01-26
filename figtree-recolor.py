@@ -105,8 +105,8 @@ NAMED_COLORS = {
     'cadmium orange': 'ed872d',
     'cadmium red': 'e30022',
     'cadmium yellow': 'fff600',
-    'café au lait': 'a67b5b',
-    'café noir': '4b3621',
+    'cafe au lait': 'a67b5b',
+    'cafe noir': '4b3621',
     'cal poly pomona green': '1e4d2b',
     'cambridge blue': 'a3c1ad',
     'camel': 'c19a6b',
@@ -311,7 +311,7 @@ NAMED_COLORS = {
     'green yellow': 'adff2f',
     'grullo': 'a99a86',
     'guppie green': '00ff7f',
-    'halayà úbe': '663854',
+    'halaya ube': '663854',
     'han blue': '446ccf',
     'han purple': '5218fa',
     'hansa yellow': 'e9d66b',
@@ -762,7 +762,7 @@ parser = argparse.ArgumentParser(
 
 
 parser.add_argument(
-    '--nexus', nargs='?', type=argparse.FileType('r'), default=sys.stdin,
+    '--nexusFile', nargs='?', type=argparse.FileType('r'), default=sys.stdin,
     help=('The NEXUS file to re-color. If not provided, the Nexus will be '
           'read from standard input.'))
 
@@ -782,6 +782,12 @@ group.add_argument(
           'optionally with a preceeding hash. E.g., DA195 #FF0000'))
 
 parser.add_argument(
+    '--defaultColor', '--defaultColour',
+    help=('Give a default color. If not specified, nodes will be output with '
+          'no color information. May be specified as a 6-digit hex value '
+          '(with or without leading #) or as a color name.'))
+
+parser.add_argument(
     '--preserveOriginalColors', '--preserveOriginalColours', default=False,
     action='store_true',
     help=('If specified, taxa that already have a color in the Nexus file, '
@@ -797,13 +803,34 @@ if args.listColors:
                            for (color, hex6) in NAMED_COLORS.items())))
     sys.exit(0)
 
+if args.defaultColor:
+    try:
+        defaultColor = NAMED_COLORS[args.defaultColor.lower()]
+    except KeyError:
+        if args.defaultColor.startswith('#'):
+            defaultColor = args.defaultColor[1:]
+        else:
+            defaultColor = args.defaultColor
+
+        # Should check here that this is a hex-string, not an unknown or
+        # misspelled color, like browne. But, live dangerously!
+        if len(defaultColor) != 6:
+            raise ValueError('Unrecognized or incorrect length default '
+                             'color: %r' % args.defaultColor)
+else:
+    defaultColor = None
+
 colors = {}
 for line in args.colorFile:
     # Lines with # in column 1 of the color file are taken to be comments.
     if line.startswith('#'):
         continue
     line = line[:-1]
-    taxon, color = line.split(maxsplit=1)
+    try:
+        taxon, color = line.split(maxsplit=1)
+    except TypeError:
+        # Python 2
+        taxon, color = line.split(None, 1)
     if not color.startswith('#'):
         try:
             hex6 = NAMED_COLORS[color.lower()]
@@ -818,12 +845,19 @@ for line in args.colorFile:
         raise ValueError('Taxon %r repeated in color file' % taxon)
     colors[taxon] = color
 
-colorRe = re.compile('^(\s*)\'?([^[\']+)')
+colorRe = re.compile("""
+                     ^(\s*) # Leading whitespace.
+                     (?:
+                         '([^']+)' # A taxon name in single quotes
+                         |         # or...
+                         ([^[]+)\[ # A taxon name followed by a [
+                     )
+                     """, re.X)
 
 waitingForTaxa = True
 inTaxa = False
 
-for line in args.nexus:
+for line in args.nexusFile:
     if waitingForTaxa:
         if line.startswith('begin taxa;'):
             waitingForTaxa = False
@@ -837,7 +871,7 @@ for line in args.nexus:
             match = colorRe.match(line)
             if match:
                 whitespace = match.group(1)
-                taxon = match.group(2)
+                taxon = match.group(2) or match.group(3)
                 if taxon in colors:
                     print('%s%s[&!color=%s]' % (whitespace, taxon,
                                                 colors[taxon]))
@@ -848,7 +882,11 @@ for line in args.nexus:
                     if args.preserveOriginalColors:
                         print(line, end='')
                     else:
-                        print('%s\'%s\'' % (whitespace, taxon))
+                        if defaultColor:
+                            print('%s%s[&!color=#%s]' % (whitespace, taxon,
+                                                         defaultColor))
+                        else:
+                            print('%s\'%s\'' % (whitespace, taxon))
             else:
                 print(line, end='')
     else:
