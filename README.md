@@ -46,6 +46,20 @@ color. Colors are either specified as 6 hexadecimal digit
 with a leading `#` (e.g., `#00FF00` and `#FF00FF` above), or are given as a
 name (`antique fuchsia` above). To list the available names, see below.
 
+By default, case will not be considered when matching taxa names against
+the first field of your color specification file. To change this, use the
+`--matchCase` option when calling `figtree-recolor.py`.
+
+It is also possible for the first field of each line of the color
+specification file to be a
+[regular expression](https://en.wikipedia.org/wiki/Regular_expression) to
+match taxa names against. In this case, you will need to run
+`figtree-recolor.py` with the `--regex` option.  Regular expressions
+matches are not tied to the start of the taxon string, so remember to use
+`^` and `$` if you want to tie your regular expression to one or both ends
+of the taxon name.  Note that the first regular expression that matches a
+taxon will be the one whose color is used.
+
 #### Create a new Nexus file
 
 `figtree-recolor.py` writes a Nexus file on standard output. So you run it via:

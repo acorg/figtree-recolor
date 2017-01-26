@@ -757,7 +757,102 @@ NAMED_COLORS = {
 }
 
 
+class StringLookup():
+    """
+    Read string taxa names and their associated colors and provide a find
+    method for looking up taxa.
+    """
+    def __init__(self, fp, matchCase):
+        colors = {}
+        self.matchCase = matchCase
+
+        for line in fp:
+            # Lines with # in column 1 of the color file are taken to be
+            # comments.
+            if line.startswith('#'):
+                continue
+            line = line[:-1]
+            try:
+                taxon, color = line.split(maxsplit=1)
+            except TypeError:
+                # Python 2
+                taxon, color = line.split(None, 1)
+            if not color.startswith('#'):
+                try:
+                    hex6 = NAMED_COLORS[color.lower()]
+                except KeyError:
+                    raise ValueError('Unrecognized color name %r' % color)
+                else:
+                    color = '#' + hex6
+
+            if not matchCase:
+                taxon = taxon.lower()
+
+            if taxon in colors:
+                # We could allow repeats if the color is the same, but a
+                # repeated taxon is probably a sign of error.
+                raise ValueError('Taxon %r repeated in color file' % taxon)
+            colors[taxon] = color
+
+        self.colors = colors
+
+    def find(self, taxon):
+        try:
+            return self.colors[taxon if self.matchCase else taxon.lower()]
+        except KeyError:
+            return
+
+
+class RegexLookup():
+    """
+    Read regex patterns of taxa names and their associated colors and provide a
+    find method for looking up taxa.
+    """
+    def __init__(self, fp, matchCase):
+        regexps = []
+        regexpsSeen = set()
+        flags = re.UNICODE if matchCase else (re.IGNORECASE | re.UNICODE)
+
+        for line in fp:
+            # Lines with # in column 1 of the color file are taken to be
+            # comments.
+            if line.startswith('#'):
+                continue
+            line = line[:-1]
+
+            try:
+                taxonRegex, color = line.split(maxsplit=1)
+            except TypeError:
+                # Python 2
+                taxonRegex, color = line.split(None, 1)
+            if not color.startswith('#'):
+                try:
+                    hex6 = NAMED_COLORS[color.lower()]
+                except KeyError:
+                    raise ValueError('Unrecognized color name %r' % color)
+                else:
+                    color = '#' + hex6
+
+            if taxonRegex in regexpsSeen:
+                # We could allow repeated regexps if the color is the same, but
+                # a repeated regexp is probably a sign of error.
+                raise ValueError('Taxon regex %r repeated in color file' %
+                                 taxonRegex)
+
+            regexpsSeen.add(taxonRegex)
+            regexps.append((re.compile(taxonRegex, flags), color))
+
+        self.regexps = regexps
+
+    def find(self, taxon):
+        # Note: first matching regex wins.
+        for regexp, color in self.regexps:
+            if regexp.search(taxon):
+                return color
+
+
 parser = argparse.ArgumentParser(
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     description=('Re-color a FigTree NEXUS file.'))
 
 
@@ -794,6 +889,17 @@ parser.add_argument(
           'and which do not appear in the color file, will be printed with '
           'their original color.'))
 
+parser.add_argument(
+    '--regex', default=False, action='store_true',
+    help=('If specified, taxa names in the color specification file will '
+          'be treated as regular expressions.'))
+
+parser.add_argument(
+    '--matchCase', default=False, action='store_true',
+    help=('If specified, the regular expressions for taxa names in the color '
+          'specification file will consider case important in matching in '
+          'taxa names.'))
+
 
 args = parser.parse_args()
 
@@ -820,61 +926,50 @@ if args.defaultColor:
 else:
     defaultColor = None
 
-colors = {}
-for line in args.colorFile:
-    # Lines with # in column 1 of the color file are taken to be comments.
-    if line.startswith('#'):
-        continue
-    line = line[:-1]
-    try:
-        taxon, color = line.split(maxsplit=1)
-    except TypeError:
-        # Python 2
-        taxon, color = line.split(None, 1)
-    if not color.startswith('#'):
-        try:
-            hex6 = NAMED_COLORS[color.lower()]
-        except KeyError:
-            raise ValueError('Unrecognized color name %r' % color)
-        else:
-            color = '#' + hex6
+# Depending on whether the color specification file has taxa as plain
+# strings (the default) or as regular expressions, create something we can
+# use to look up colors for taxa.
+if args.regex:
+    lookupTaxon = RegexLookup(args.colorFile, args.matchCase).find
+else:
+    lookupTaxon = StringLookup(args.colorFile, args.matchCase).find
 
-    if taxon in colors:
-        # We could allow repeats if the color is the same, but a repeated
-        # taxon is probably a sign of error.
-        raise ValueError('Taxon %r repeated in color file' % taxon)
-    colors[taxon] = color
 
-colorRe = re.compile("""
-                     ^(\s*) # Leading whitespace.
+# A regex to match taxa names in the pre-existing Nexus file.
+taxonRe = re.compile("""
+                     (\s*) # Optional leading whitespace.
                      (?:
-                         '([^']+)' # A taxon name in single quotes
-                         |         # or...
-                         ([^[]+)\[ # A taxon name followed by a [
+                         '([^']+)' # A taxon name in single quotes,
+                         |         # or
+                         ([^[]+)\[ # a taxon name followed by a [.
                      )
                      """, re.X)
 
-waitingForTaxa = True
-inTaxa = False
+startOfTaxaRe = re.compile('^\s*begin\s+taxa\s*;\s*$')
+endOfTaxaRe = re.compile('^\s*;\s*$')
 
+waitingForTaxaBlock = True
+inTaxaBlock = False
+
+# Poor man's line-by-line Nexus parsing, looking for the taxa block.
 for line in args.nexusFile:
-    if waitingForTaxa:
-        if line.startswith('begin taxa;'):
-            waitingForTaxa = False
-            inTaxa = True
+    if waitingForTaxaBlock:
+        if startOfTaxaRe.search(line):
+            waitingForTaxaBlock = False
+            inTaxaBlock = True
         print(line, end='')
-    elif inTaxa:
-        if line.startswith(';'):
-            inTaxa = False
+    elif inTaxaBlock:
+        if endOfTaxaRe.search(line):
+            inTaxaBlock = False
             print(line, end='')
         else:
-            match = colorRe.match(line)
+            match = taxonRe.match(line)
             if match:
                 whitespace = match.group(1)
                 taxon = match.group(2) or match.group(3)
-                if taxon in colors:
-                    print('%s%s[&!color=%s]' % (whitespace, taxon,
-                                                colors[taxon]))
+                color = lookupTaxon(taxon)
+                if color:
+                    print('%s%s[&!color=%s]' % (whitespace, taxon, color))
                 else:
                     # We have no color for this taxon. Either leave it
                     # alone (i.e., print the original color (if any) or
