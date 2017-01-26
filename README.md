@@ -88,7 +88,11 @@ pre-existing color (and is not named in the colors specification file),
 then the original color will be preserved (i.e., the default will not be
 applied).
 
-#### Named colors
+#### View your colored tree
+
+Once you've created a new Nexus file, go back into FigTree and open it.
+
+### Named colors
 
 A list of the known color names (and their hex values) can be printed via:
 
