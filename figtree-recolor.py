@@ -948,6 +948,7 @@ taxonRe = re.compile("""
                      )
                      """, re.X)
 
+taxaVerbatimRe = re.compile('^\s*(dimensions\s+ntax=\d+;|taxlabels)\s*$')
 startOfTaxaRe = re.compile('^\s*begin\s+taxa\s*;\s*$')
 endOfTaxaRe = re.compile('^\s*;\s*$')
 
@@ -964,6 +965,8 @@ for line in args.nexusFile:
     elif inTaxaBlock:
         if endOfTaxaRe.search(line):
             inTaxaBlock = False
+            print(line, end='')
+        elif taxaVerbatimRe.search(line):
             print(line, end='')
         else:
             match = taxonRe.match(line)
