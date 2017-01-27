@@ -942,6 +942,9 @@ taxonRe = re.compile("""
                          '([^']+)' # A taxon name in single quotes,
                          |         # or
                          ([^[]+)\[ # a taxon name followed by a [.
+                         |         # or
+                         (\w+) # An unadorned taxon name. Maybe this should
+                               # have some punctuation in it too?
                      )
                      """, re.X)
 
@@ -966,7 +969,7 @@ for line in args.nexusFile:
             match = taxonRe.match(line)
             if match:
                 whitespace = match.group(1)
-                taxon = match.group(2) or match.group(3)
+                taxon = match.group(2) or match.group(3) or match.group(4)
                 color = lookupTaxon(taxon)
                 if color:
                     print('%s%s[&!color=%s]' % (whitespace, taxon, color))
