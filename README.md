@@ -38,7 +38,8 @@ Create a text file with lines like
     taxon2 #FF00FF
     taxon3 antique fuchsia
 
-Lines are treated as comments if `#` is the first character on the line.
+Lines are treated as comments if `#` is the first non-blank character on
+the line. Empty and whitespace-only lines are ignored.
 
 Otherwise, lines must give a taxon name (no whitespace!) followed by a
 color. Colors are either specified as 6 hexadecimal digit
