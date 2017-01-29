@@ -102,6 +102,9 @@ pre-existing color (and is not named in the colors specification file),
 then the original color will be preserved (i.e., the default will not be
 applied).
 
+If you use `--colorFile /dev/null`, all pre-existing colors will be removed
+(assuming you don't also use `--preserveOriginalColors`, of course).
+
 #### View your colored tree
 
 Once you've created a new Nexus file, go back into FigTree and open it.

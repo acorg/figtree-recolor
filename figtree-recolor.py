@@ -765,11 +765,12 @@ class StringLookup():
     def __init__(self, fp, matchCase):
         colors = {}
         self.matchCase = matchCase
+        # Blank lines and those whose first non-blank character is # are
+        # taken to be comments.
+        ignoreRe = re.compile('^\s*(?:#.*)?$')
 
         for line in fp:
-            # Lines with # in column 1 of the color file are taken to be
-            # comments.
-            if line.startswith('#'):
+            if ignoreRe.search(line):
                 continue
             line = line[:-1]
             try:
@@ -812,11 +813,12 @@ class RegexLookup():
         regexps = []
         regexpsSeen = set()
         flags = re.UNICODE if matchCase else (re.IGNORECASE | re.UNICODE)
+        # Blank lines and those whose first non-blank character is # are
+        # taken to be comments.
+        ignoreRe = re.compile('^\s*(?:#.*)?$')
 
         for line in fp:
-            # Lines with # in column 1 of the color file are taken to be
-            # comments.
-            if line.startswith('#'):
+            if ignoreRe.search(line):
                 continue
             line = line[:-1]
 
